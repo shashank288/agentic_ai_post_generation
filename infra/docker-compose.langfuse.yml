@@ -1,0 +1,50 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: langfuse
+      POSTGRES_DB: langfuse
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  langfuse:
+    image: langfuse/langfuse:latest
+    depends_on:
+      - postgres
+      - clickhouse
+    restart: unless-stopped
+    environment:
+      # Core database for Langfuse
+      DATABASE_URL: postgresql://langfuse:langfuse@postgres:5432/langfuse
+
+      # Auth/session settings for local dev
+      NEXTAUTH_SECRET: devsecret
+      NEXTAUTH_URL: http://localhost:3000
+
+      # Enable analytics via ClickHouse
+      CLICKHOUSE_URL: http://clickhouse:8123
+    ports:
+      - "3000:3000"
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:23
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    ports:
+      - "8123:8123"   # HTTP
+      - "9000:9000"   # Native
+    volumes:
+      - chdata:/var/lib/clickhouse
+
+volumes:
+  pgdata:
+  chdata:

@@ -9,9 +9,10 @@ This agent:
 """
 
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from langchain_openai import AzureChatOpenAI
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableConfig
 
 
 def load_writer_prompt(platform: str) -> str:
@@ -54,7 +55,7 @@ Format in markdown."""
             return """You are a social media content creator. Write an engaging post for {platform} with tone: {tone}."""
 
 
-def write_post(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
+def write_post(state: Dict[str, Any], config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
     """
     Writer agent node function.
     
@@ -86,6 +87,9 @@ def write_post(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     # Create LLM
     llm = AzureChatOpenAI(
         azure_deployment=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT"),
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+        api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
         temperature=0.8 if refinement_count == 0 else 0.6,  # Lower temp for refinement
     )
     
@@ -116,14 +120,18 @@ Rewrite the post addressing the feedback while maintaining quality and relevance
             ("human", user_message)
         ])
         
-        response = llm.invoke(prompt.format_messages(
+        messages = prompt.format_messages(
             previous_draft=state.get("draft", ""),
             feedback=feedback,
             plan=plan,
             topic=topic,
             tone=tone,
             context=context,
-        ), config=config)
+        )
+        if config:
+            response = llm.invoke(messages, config=config)
+        else:
+            response = llm.invoke(messages)
     else:
         user_message = """Outline:
 {plan}
@@ -141,12 +149,16 @@ Write the post following the outline and using insights from the context."""
             ("human", user_message)
         ])
         
-        response = llm.invoke(prompt.format_messages(
+        messages = prompt.format_messages(
             plan=plan,
             topic=topic,
             tone=tone,
             context=context,
-        ), config=config)
+        )
+        if config:
+            response = llm.invoke(messages, config=config)
+        else:
+            response = llm.invoke(messages)
     
     draft = response.content
     

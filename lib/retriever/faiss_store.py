@@ -11,12 +11,14 @@ Indexes are persisted to disk to avoid re-embedding documents on every startup.
 
 import os
 import pickle
+import time
 from pathlib import Path
 from typing import List, Optional
 
 import faiss
 import numpy as np
 from langchain_openai import AzureOpenAIEmbeddings
+from openai import RateLimitError
 
 from .base import Document, RetrieverBase
 
@@ -141,36 +143,107 @@ class FaissRetriever(RetrieverBase):
         
         return results
     
-    def add_documents(self, documents: List[Document]) -> None:
+    def add_documents(
+        self,
+        documents: List[Document],
+        batch_size: int = 100,
+        delay_between_batches: float = 2.0,
+        max_retries: int = 3,
+    ) -> None:
         """
-        Add documents to the FAISS index.
+        Add documents to the retriever with batching and retry logic.
         
         Args:
-            documents (List[Document]): Documents to add
+            documents: List of Document objects to add
+            batch_size: Number of documents to embed in each batch (default: 100)
+            delay_between_batches: Seconds to wait between batches (default: 2.0)
+            max_retries: Maximum retry attempts for rate limit errors (default: 3)
             
         Notes:
-            - Embeds all documents using the embeddings model
+            - Embeds documents in batches to avoid rate limits
             - Adds embeddings to the FAISS index
             - Stores documents for later retrieval
+            - Automatically retries on rate limit errors with exponential backoff
         """
         if not documents:
             return
         
-        # Extract text content
-        texts = [doc.content for doc in documents]
-        
-        # Embed all documents
-        embeddings = self.embeddings.embed_documents(texts)
-        embeddings_array = np.array(embeddings, dtype=np.float32)
-        
-        # Add to FAISS index
+        # Initialize index if needed
         if self.index is None:
             self._initialize_index()
         
-        self.index.add(embeddings_array)
+        # Process in batches
+        total_batches = (len(documents) + batch_size - 1) // batch_size
         
-        # Store documents
-        self.documents.extend(documents)
+        for batch_idx in range(0, len(documents), batch_size):
+            batch_docs = documents[batch_idx:batch_idx + batch_size]
+            batch_num = (batch_idx // batch_size) + 1
+            
+            print(f"  📦 Processing batch {batch_num}/{total_batches} ({len(batch_docs)} chunks)...")
+            
+            # Extract text content
+            texts = [doc.content for doc in batch_docs]
+            
+            # Embed with retry logic
+            embeddings = self._embed_with_retry(
+                texts,
+                max_retries=max_retries,
+                batch_num=batch_num,
+            )
+            
+            if embeddings is None:
+                print(f"  ⚠️  Skipping batch {batch_num} due to repeated failures")
+                continue
+            
+            embeddings_array = np.array(embeddings, dtype=np.float32)
+            
+            # Add to FAISS index
+            self.index.add(embeddings_array)
+            
+            # Store documents
+            self.documents.extend(batch_docs)
+            
+            # Delay between batches (except for the last batch)
+            if batch_idx + batch_size < len(documents):
+                time.sleep(delay_between_batches)
+    
+    def _embed_with_retry(
+        self,
+        texts: List[str],
+        max_retries: int = 3,
+        batch_num: int = 0,
+    ) -> Optional[List[List[float]]]:
+        """
+        Embed texts with exponential backoff retry on rate limit errors.
+        
+        Args:
+            texts: List of texts to embed
+            max_retries: Maximum number of retry attempts
+            batch_num: Current batch number (for logging)
+            
+        Returns:
+            List of embeddings or None if all retries failed
+        """
+        for attempt in range(max_retries):
+            try:
+                embeddings = self.embeddings.embed_documents(texts)
+                return embeddings
+            
+            except RateLimitError as e:
+                if attempt < max_retries - 1:
+                    # Exponential backoff: 60s, 120s, 240s
+                    wait_time = 60 * (2 ** attempt)
+                    print(f"  ⚠️  Rate limit hit on batch {batch_num}. Retrying in {wait_time}s (attempt {attempt + 1}/{max_retries})...")
+                    time.sleep(wait_time)
+                else:
+                    print(f"  ❌ Rate limit error persists after {max_retries} attempts: {e}")
+                    return None
+            
+            except Exception as e:
+                print(f"  ❌ Unexpected error embedding batch {batch_num}: {e}")
+                return None
+        
+        return None
     
     def save(self, path: str) -> None:
         """

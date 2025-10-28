@@ -9,9 +9,10 @@ This agent:
 """
 
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from langchain_openai import AzureChatOpenAI
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableConfig
 
 from lib.retriever import FaissRetriever
 from lib.memory import LongTermMemory
@@ -42,7 +43,7 @@ Create a detailed outline with:
 Be specific and cite the context where relevant. Keep the outline concise but actionable."""
 
 
-def create_plan(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
+def create_plan(state: Dict[str, Any], config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
     """
     Planner agent node function.
     
@@ -86,6 +87,9 @@ def create_plan(state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]
     # Create LLM
     llm = AzureChatOpenAI(
         azure_deployment=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT"),
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+        api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
         temperature=0.7,
     )
     
@@ -106,12 +110,16 @@ Create a detailed outline for this post.""")
     
     # Generate plan
     chain = prompt | llm
-    response = chain.invoke({
+    invoke_kwargs = {
         "topic": topic,
         "platform": platform,
         "tone": tone,
         "context": context_text,
-    }, config=config)
+    }
+    if config:
+        response = chain.invoke(invoke_kwargs, config=config)
+    else:
+        response = chain.invoke(invoke_kwargs)
     
     plan = response.content
     

@@ -15,7 +15,7 @@ Langfuse provides full observability for LLM applications with:
 """
 
 import os
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING
 import warnings
 
 try:
@@ -24,6 +24,8 @@ try:
     LANGFUSE_AVAILABLE = True
 except ImportError:
     LANGFUSE_AVAILABLE = False
+    CallbackHandler = None  # type: ignore
+    Langfuse = None  # type: ignore
     warnings.warn("langfuse package not installed. Tracing will be disabled.")
 
 

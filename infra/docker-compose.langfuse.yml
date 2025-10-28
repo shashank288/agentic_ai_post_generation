@@ -12,12 +12,17 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   langfuse:
-    image: langfuse/langfuse:latest
+    image: langfuse/langfuse:2
     depends_on:
-      - postgres
-      - clickhouse
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     environment:
       # Core database for Langfuse
@@ -26,15 +31,18 @@ services:
       # Auth/session settings for local dev
       NEXTAUTH_SECRET: devsecret
       NEXTAUTH_URL: http://localhost:3000
-
-      # Enable analytics via ClickHouse
-      CLICKHOUSE_URL: http://clickhouse:8123
+      SALT: changethis-at-least-256-bits-long-random-string-for-encryption
     ports:
       - "3000:3000"
 
   clickhouse:
     image: clickhouse/clickhouse-server:23
     restart: unless-stopped
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 0
     ulimits:
       nofile:
         soft: 262144
@@ -44,6 +52,11 @@ services:
       - "9000:9000"   # Native
     volumes:
       - chdata:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --query='SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
 
 volumes:
   pgdata:

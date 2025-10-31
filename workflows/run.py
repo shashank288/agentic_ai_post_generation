@@ -66,6 +66,7 @@ def run_post_generator(
     )
     
     # Get callback handler for tracing
+    # Langfuse v3.8+ CallbackHandler will auto-create traces when used
     callback_handler = tracer.get_callback_handler(
         session_id=session_id,
         user_id=user_id,
@@ -117,26 +118,46 @@ def run_post_generator(
         }
         
         # Add trace URL if available
-        if callback_handler and hasattr(callback_handler, "trace_id"):
-            trace_id = callback_handler.trace_id
+        # Get trace_id from callback handler (created during graph execution)
+        trace_id = None
+        if callback_handler:
+            if hasattr(callback_handler, "last_trace_id") and callback_handler.last_trace_id:
+                trace_id = callback_handler.last_trace_id
+            elif hasattr(callback_handler, "trace_id") and callback_handler.trace_id:
+                trace_id = callback_handler.trace_id
+        
+        if trace_id:
             result["trace_url"] = tracer.get_trace_url(trace_id)
+            print(f"Trace ID: {trace_id}")
+            print(f"Trace URL: {result['trace_url']}")
             
             # Add scores to trace
             if final_state.get("scores"):
-                tracer.add_scores(
+                print(f"Adding scores to trace {trace_id}: {final_state['scores']}")
+                success = tracer.add_scores(
                     trace_id=trace_id,
                     scores=final_state["scores"],
                     comment="DeepEval metrics from fact-checker"
                 )
+                if success:
+                    print("Scores added successfully")
+                    # Flush immediately after adding scores
+                    if tracer.enabled:
+                        tracer.flush()
+                        print("Langfuse data flushed")
+        else:
+            print("No trace_id available for trace URL")
         
-        # Flush tracer to ensure all data is sent
-        tracer.flush()
+        # Final flush to ensure all data is sent
+        if tracer.enabled:
+            tracer.flush()
         
         return result
         
     except Exception as e:
         print(f"Error during graph execution: {e}")
-        tracer.flush()
+        if tracer.enabled:
+            tracer.flush()
         raise
 
 

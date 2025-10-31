@@ -19,14 +19,14 @@ from typing import Optional, Dict, Any, TYPE_CHECKING
 import warnings
 
 try:
-    from langfuse.callback import CallbackHandler
+    from langfuse.langchain import CallbackHandler
     from langfuse import Langfuse
     LANGFUSE_AVAILABLE = True
 except ImportError:
     LANGFUSE_AVAILABLE = False
     CallbackHandler = None  # type: ignore
     Langfuse = None  # type: ignore
-    warnings.warn("langfuse package not installed. Tracing will be disabled.")
+    warnings.warn("langfuse package not installed or langchain missing. Tracing will be disabled.")
 
 
 class LangfuseTracer:
@@ -75,11 +75,11 @@ class LangfuseTracer:
             return
         
         try:
-            # Initialize Langfuse client
+            # Initialize Langfuse client (v3.8+ uses base_url instead of host)
             self.client = Langfuse(
                 public_key=self.public_key,
                 secret_key=self.secret_key,
-                host=self.host
+                base_url=self.host if self.host else None
             )
             self.enabled = True
             print(f"Langfuse tracing enabled: {self.host}")
@@ -128,22 +128,21 @@ class LangfuseTracer:
             return None
         
         try:
-            # Build trace metadata
-            trace_metadata = metadata or {}
-            if session_id:
-                trace_metadata["session_id"] = session_id
-            if user_id:
-                trace_metadata["user_id"] = user_id
-            
-            # Create callback handler
+            # Langfuse v3.8+ CallbackHandler has a simpler API
+            # It uses environment variables for configuration
+            # Metadata and session info can be added via tags in LangChain
             handler = CallbackHandler(
                 public_key=self.public_key,
-                secret_key=self.secret_key,
-                host=self.host,
-                session_id=session_id,
-                user_id=user_id,
-                metadata=trace_metadata,
+                update_trace=True,  # Update trace with chain metadata
             )
+            
+            # Store metadata for later attachment if needed
+            if hasattr(handler, '_metadata'):
+                handler._metadata = metadata or {}
+                if session_id:
+                    handler._metadata["session_id"] = session_id
+                if user_id:
+                    handler._metadata["user_id"] = user_id
             
             return handler
             
@@ -186,7 +185,8 @@ class LangfuseTracer:
         
         try:
             for name, value in scores.items():
-                self.client.score(
+                # Langfuse v3.8+ uses create_score instead of score
+                self.client.create_score(
                     trace_id=trace_id,
                     name=name,
                     value=value,

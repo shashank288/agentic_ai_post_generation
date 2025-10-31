@@ -3,7 +3,7 @@ name = "agentic-post-gen"
 version = "0.1.0"
 description = "Multi-agent post generator with LangGraph, FAISS retrieval, and Langfuse observability"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     # Core framework
     "fastapi>=0.104.0",
@@ -11,23 +11,27 @@ dependencies = [
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
     
-    # LangChain & LangGraph
-    "langchain>=0.1.0",
-    "langchain-openai>=0.0.5",
-    "langgraph>=0.0.26",
-    "langchain-community>=0.0.10",
+    # LangChain (v1 module layout) & LangGraph
+    "langchain-openai>=1.0.0,<2",
+    "langchain-core>=1.0.0,<2",
+    "langchain-text-splitters>=1.0.0,<2",
+    "langgraph>=1.0.0,<2",
     
     # Azure integrations
     "azure-cosmos>=4.5.1",
     "azure-identity>=1.15.0",
+    "azure-ai-documentintelligence>=1.0.2",
     
     # Vector stores & retrieval
-    "faiss-cpu>=1.7.4",
+    "faiss-cpu>=1.8.0",
     "tiktoken>=0.5.2",
+    "openai>=1.0.0",
+    "pymupdf>=1.23.0",
+    "pillow>=10.0.0",
     
     # Evaluation & Observability
-    "deepeval>=0.20.0",
-    "langfuse>=2.0.0",
+    "deepeval>=3.0.0",
+    "langfuse>=3.0.0",
     
     # Utilities
     "python-dotenv>=1.0.0",
@@ -55,17 +59,17 @@ packages = ["agents", "api", "lib", "workflows"]
 
 [tool.black]
 line-length = 100
-target-version = ['py311']
-include = '\.pyi?$'
+target-version = ['py310']
+include = '\\.pyi?$'
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py310"
 select = ["E", "F", "I", "N", "W", "UP"]
 ignore = ["E501"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false

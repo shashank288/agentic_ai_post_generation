@@ -12,7 +12,11 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Dict
 
+# Load environment variables FIRST, before any project imports
+# This ensures .env is loaded when other modules (like fact_checker) are imported
 from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -29,9 +33,6 @@ from workflows import run_post_generator
 from lib.retriever import FaissRetriever
 from lib.memory import LongTermMemory
 from lib.observability import get_tracer
-
-# Load environment variables
-load_dotenv()
 
 
 # Lifespan context manager for startup/shutdown
@@ -322,3 +323,7 @@ if __name__ == "__main__":
         reload=reload,
         log_level=os.getenv("LOG_LEVEL", "info").lower(),
     )
+    # from dotenv import load_dotenv; load_dotenv()
+    # from lib.observability import get_tracer
+    # t = get_tracer()
+    # print("enabled:", t.enabled, "host:", getattr(t, "host", None))

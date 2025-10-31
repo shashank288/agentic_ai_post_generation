@@ -256,5 +256,8 @@ def create_ltm_container():
 
 if __name__ == "__main__":
     # Test/setup script
+    from dotenv import load_dotenv
+    load_dotenv()  # Load .env file
+    
     print("Setting up LTM container...")
     create_ltm_container()

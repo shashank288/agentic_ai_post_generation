@@ -272,5 +272,8 @@ def create_checkpoints_container():
 
 if __name__ == "__main__":
     # Test/setup script
+    from dotenv import load_dotenv
+    load_dotenv()  # Load .env file
+    
     print("Setting up checkpoints container...")
     create_checkpoints_container()

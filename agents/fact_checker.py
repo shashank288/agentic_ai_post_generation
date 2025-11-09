@@ -14,18 +14,29 @@ import warnings
 
 # Configure Azure OpenAI environment variables for DeepEval BEFORE imports
 # DeepEval uses LiteLLM which needs these set early
-if not os.getenv("OPENAI_API_KEY") and os.getenv("AZURE_OPENAI_API_KEY"):
-    os.environ["OPENAI_API_KEY"] = os.getenv("AZURE_OPENAI_API_KEY")
-    if os.getenv("AZURE_OPENAI_ENDPOINT"):
-        os.environ["AZURE_OPENAI_ENDPOINT"] = os.getenv("AZURE_OPENAI_ENDPOINT")
-        os.environ["AZURE_API_BASE"] = os.getenv("AZURE_OPENAI_ENDPOINT")
-    if os.getenv("AZURE_OPENAI_API_VERSION"):
-        os.environ["AZURE_API_VERSION"] = os.getenv("AZURE_OPENAI_API_VERSION")
+# if not os.getenv("OPENAI_API_KEY") and os.getenv("AZURE_OPENAI_API_KEY"):
+#     os.environ["OPENAI_API_KEY"] = os.getenv("AZURE_OPENAI_API_KEY")
+#     if os.getenv("AZURE_OPENAI_ENDPOINT"):
+#         os.environ["AZURE_OPENAI_ENDPOINT"] = os.getenv("AZURE_OPENAI_ENDPOINT")
+#         os.environ["AZURE_API_BASE"] = os.getenv("AZURE_OPENAI_ENDPOINT")
+#     if os.getenv("AZURE_OPENAI_API_VERSION"):
+#         os.environ["AZURE_API_VERSION"] = os.getenv("AZURE_OPENAI_API_VERSION")
+
+os.environ["LITELLM_API_TYPE"] = "azure"
+os.environ["LITELLM_AZURE_API_KEY"] = os.getenv("AZURE_OPENAI_API_KEY")
+os.environ["LITELLM_AZURE_API_BASE"] = os.getenv("AZURE_OPENAI_ENDPOINT")
+os.environ["LITELLM_AZURE_API_VERSION"] = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+os.environ["LITELLM_AZURE_DEPLOYMENT_NAME"] = os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o")
+
+# Do NOT set OPENAI_API_KEY to Azure key
+# if "OPENAI_API_KEY" in os.environ:
+#     del os.environ["OPENAI_API_KEY"]
 
 # DeepEval imports with fallback
 try:
     from deepeval.metrics import FaithfulnessMetric, AnswerRelevancyMetric
     from deepeval.test_case import LLMTestCase
+    from deepeval.models import AzureOpenAIModel
     DEEPEVAL_AVAILABLE = True
 except ImportError:
     DEEPEVAL_AVAILABLE = False
@@ -86,20 +97,45 @@ def check_facts(state: Dict[str, Any]) -> Dict[str, Any]:
         try:
             # DeepEval v3.6+ with Azure OpenAI: just pass deployment name
             # It will use Azure based on environment variables (OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, etc.)
-            deployment_name = os.getenv("DEEPEVAL_MODEL") or os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o")
+            # deployment_name = os.getenv("DEEPEVAL_MODEL") or os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o")
             
-            print(f"   Model deployment: {deployment_name}")
+            # print(f"   Model deployment: {deployment_name}")
+            # azure_model = AzureOpenAIModel(
+            #     model_name="gpt-4o",
+            #     deployment_name=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT"),
+            #     azure_openai_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            #     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            #     azure_api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+            # )
+            azure_model = AzureOpenAIModel(
+                model_name="gpt-4o",
+                deployment_name=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o"),
+                azure_openai_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                openai_api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview"),
+                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                temperature=0.0
+            )
             
             # Faithfulness: Does the output align with the retrieved context?
+            # faithfulness_metric = FaithfulnessMetric(
+            #     threshold=faithfulness_threshold,
+            #     model=deployment_name,
+            # )
+
             faithfulness_metric = FaithfulnessMetric(
                 threshold=faithfulness_threshold,
-                model=deployment_name,
+                model=azure_model,
             )
             
             # Answer Relevancy: Does the output answer the input topic?
+            # relevancy_metric = AnswerRelevancyMetric(
+            #     threshold=relevancy_threshold,
+            #     model=deployment_name,
+            # )
+
             relevancy_metric = AnswerRelevancyMetric(
                 threshold=relevancy_threshold,
-                model=deployment_name,
+                model=azure_model,
             )
             
             # Measure metrics

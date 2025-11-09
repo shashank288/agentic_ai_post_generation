@@ -55,7 +55,7 @@ Format in markdown."""
             return """You are a social media content creator. Write an engaging post for {platform} with tone: {tone}."""
 
 
-def write_post(state: Dict[str, Any], config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
+def write_post(state: Dict[str, Any], *, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
     """
     Writer agent node function.
     
@@ -128,10 +128,9 @@ Rewrite the post addressing the feedback while maintaining quality and relevance
             tone=tone,
             context=context,
         )
-        if config:
-            response = llm.invoke(messages, config=config)
-        else:
-            response = llm.invoke(messages)
+        # Always pass config to ensure callbacks are propagated
+        print(f"DEBUG writer: config={config}, has callbacks={bool(config and config.get('callbacks'))}")
+        response = llm.invoke(messages, config=config or {})
     else:
         user_message = """Outline:
 {plan}
@@ -155,10 +154,8 @@ Write the post following the outline and using insights from the context."""
             tone=tone,
             context=context,
         )
-        if config:
-            response = llm.invoke(messages, config=config)
-        else:
-            response = llm.invoke(messages)
+        # Always pass config to ensure callbacks are propagated
+        response = llm.invoke(messages, config=config or {})
     
     draft = response.content
     

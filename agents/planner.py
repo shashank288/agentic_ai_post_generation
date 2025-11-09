@@ -43,7 +43,7 @@ Create a detailed outline with:
 Be specific and cite the context where relevant. Keep the outline concise but actionable."""
 
 
-def create_plan(state: Dict[str, Any], config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
+def create_plan(state: Dict[str, Any], *, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
     """
     Planner agent node function.
     
@@ -116,10 +116,8 @@ Create a detailed outline for this post.""")
         "tone": tone,
         "context": context_text,
     }
-    if config:
-        response = chain.invoke(invoke_kwargs, config=config)
-    else:
-        response = chain.invoke(invoke_kwargs)
+    
+    response = chain.invoke(invoke_kwargs, config=config or {})
     
     plan = response.content
     
